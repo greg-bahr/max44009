@@ -21,22 +21,22 @@ const (
 
 type MAX44009 struct {
 	busCloser i2c.BusCloser
-	Dev i2c.Dev
+	Dev       i2c.Dev
 }
 
-func New(address uint16, bus uint16) *MAX44009 {
+func New(address uint16, bus string) *MAX44009 {
 	if _, err := host.Init(); err != nil {
 		log.Fatal(err)
 	}
 
-	b, err := i2creg.Open(string(bus))
+	b, err := i2creg.Open(bus)
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	return &MAX44009{
 		Dev: i2c.Dev{
-			Bus: b,
+			Bus:  b,
 			Addr: address,
 		},
 		busCloser: b,
@@ -61,7 +61,7 @@ func (d *MAX44009) Configure(continuous bool, manual bool, cdr bool, time byte) 
 	config |= byte(time & 0x07)
 
 	ret := make([]byte, 1)
-	return d.Dev.Tx([]byte{ ConfigurationRegister, config }, ret), ret[0]
+	return d.Dev.Tx([]byte{ConfigurationRegister, config}, ret), ret[0]
 }
 
 func (d *MAX44009) Luminosity() (error, float64) {
