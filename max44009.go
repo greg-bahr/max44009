@@ -119,6 +119,8 @@ func (d *MAX44009) ReadLuminosityContinuously() <-chan float64 {
 	return data
 }
 
+// readingLuminosity continuously reads luminosity from the MAX44009 and sends it to the data channel
+// until the done channel is closed.
 func (d *MAX44009) readingLuminosity(data chan<- float64, done <-chan struct{}) {
 	for {
 		d.mu.Lock()
@@ -126,7 +128,7 @@ func (d *MAX44009) readingLuminosity(data chan<- float64, done <-chan struct{}) 
 		d.mu.Unlock()
 
 		if err != nil {
-			log.Printf("Sensor failed to sense: %v", err)
+			log.Panicf("Sensor failed to sense: %v", err)
 			return
 		}
 
@@ -138,7 +140,7 @@ func (d *MAX44009) readingLuminosity(data chan<- float64, done <-chan struct{}) 
 	}
 }
 
-// Halt stops the MAX44009 from reading luminosity and closes the channel after
+// HaltLuminosityReading stops the MAX44009 from reading luminosity and closes the channel after
 // ReadLuminosityContinuously() is called.
 func (d *MAX44009) HaltLuminosityReading() {
 	d.mu.Lock()

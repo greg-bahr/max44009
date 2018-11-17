@@ -3,7 +3,6 @@ package max44009_test
 import (
 	"fmt"
 	"github.com/greg-bahr/max44009"
-	"log"
 	"time"
 )
 
@@ -14,22 +13,16 @@ func Example() {
 
 	// Configure the sensor to run on continuous mode, manual mode,
 	// and set integration time to 100ms.
-	sensor.Configure(true, true, false, 3)
+	sensor.Configure(true, false, false, 2)
 
-	// Set up a ticker to run every 100ms.
-	ticker := time.NewTicker(100 * time.Millisecond)
 	go func() {
-		for range ticker.C {
-			// Retrieve and print luminosity from sensor.
-			err, lux := sensor.ReadLuminosityOnce()
-			if err != nil {
-				log.Fatal(err)
-			}
-			fmt.Println(lux)
+		// Continuously read and print luminosity
+		for lux := range sensor.ReadLuminosityContinuously() {
+			fmt.Printf("Lux: %.2f\n", lux)
 		}
 	}()
 
 	// Stop the ticker after 60 seconds.
 	time.Sleep(time.Second * 60)
-	ticker.Stop()
+	sensor.HaltLuminosityReading()
 }
