@@ -21,7 +21,7 @@ func Example() {
 	go func() {
 		for range ticker.C {
 			// Retrieve and print luminosity from sensor.
-			err, lux := sensor.Luminosity()
+			err, lux := sensor.ReadLuminosityOnce()
 			if err != nil {
 				log.Fatal(err)
 			}

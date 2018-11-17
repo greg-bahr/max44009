@@ -11,6 +11,7 @@ import (
 	"periph.io/x/periph/conn/i2c"
 	"periph.io/x/periph/conn/i2c/i2creg"
 	"periph.io/x/periph/host"
+	"sync"
 )
 
 const (
@@ -28,6 +29,10 @@ const (
 type MAX44009 struct {
 	busCloser i2c.BusCloser
 	Dev       i2c.Dev
+
+	mu   sync.Mutex
+	wg   sync.WaitGroup
+	stop chan struct{}
 }
 
 // New returns a new MAX44009 that communicates over I²C to
@@ -79,7 +84,7 @@ func (d *MAX44009) Configure(continuous bool, manual bool, cdr bool, time byte) 
 }
 
 // Reads luminosity in Lux from the sensor. Returns a float from 0 - 188,000.
-func (d *MAX44009) Luminosity() (error, float64) {
+func (d *MAX44009) ReadLuminosityOnce() (error, float64) {
 	bytes := make([]byte, 2)
 	tx := d.Dev.Tx([]byte{luxHighByteRegister}, bytes)
 
@@ -87,4 +92,63 @@ func (d *MAX44009) Luminosity() (error, float64) {
 	mantissa := ((bytes[0] & 0x0F) << 4) | (bytes[1] & 0x0F)
 
 	return tx, math.Pow(2, float64(exponent)) * float64(mantissa) * .72
+}
+
+// ReadLuminosityContinuously reads luminosity in Lux on a continuous basis.
+//
+// HaltLuminosityReading() must be called to stop the sensing and close the channel.
+func (d *MAX44009) ReadLuminosityContinuously() <-chan float64 {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	if d.stop != nil {
+		close(d.stop)
+		d.stop = nil
+		d.wg.Wait()
+	}
+
+	data := make(chan float64)
+	d.stop = make(chan struct{})
+	d.wg.Add(1)
+	go func() {
+		defer d.wg.Done()
+		defer close(data)
+		d.readingLuminosity(data, d.stop)
+	}()
+
+	return data
+}
+
+func (d *MAX44009) readingLuminosity(data chan<- float64, done <-chan struct{}) {
+	for {
+		d.mu.Lock()
+		err, lux := d.ReadLuminosityOnce()
+		d.mu.Unlock()
+
+		if err != nil {
+			log.Printf("Sensor failed to sense: %v", err)
+			return
+		}
+
+		select {
+		case data <- lux:
+		case <-done:
+			return
+		}
+	}
+}
+
+// Halt stops the MAX44009 from reading luminosity and closes the channel after
+// ReadLuminosityContinuously() is called.
+func (d *MAX44009) HaltLuminosityReading() {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	if d.stop == nil {
+		return
+	}
+
+	close(d.stop)
+	d.stop = nil
+	d.wg.Wait()
 }
